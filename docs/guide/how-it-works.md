@@ -1,58 +1,88 @@
 # How It Works
 
-## The MCP Protocol - A Quick Primer
+## The MCP Protocol
 
 MCP defines a standard conversation between an AI client and a server:
 
 ```
-Client → Server:  "What can you do?"
-Server → Client:  [list of tools, each with name, description, JSON Schema]
+Client -> Server:  "What can you do?"
+Server -> Client:  [list of tools with name, description, JSON Schema]
 
-Client → Server:  "Call search_employees with query='Build'"
-Server → Client:  [structured result]
+Client -> Server:  "Call search_contacts with query='Acme'"
+Server -> Client:  [structured result]
 ```
 
-The key insight is that **the AI model reads the tool descriptions** and decides which tool to call based on user intent - not because the developer hardcoded "if user says X, call tool Y". This makes the integration flexible and composable.
+The AI model reads the tool descriptions and decides which tool to call based on the user's intent. In the MCP Platform, this list is dynamically assembled per tenant. Company A gets their tools, Company B gets theirs, and they never overlap.
 
 ---
 
-## Tool Anatomy
+## Multi-Tenancy in Practice
 
-Each MCP tool has three parts:
+When an AI client connects to the MCP Platform, the first thing the platform does is identify the tenant. This happens via the JWT:
 
-| Part | Purpose | Example |
-|---|---|---|
-| **Name** | Unique identifier | `search_employees` |
-| **Description** | Natural language - the model reads this | "Search the employee directory by name, department, or job title..." |
-| **JSON Schema** | Defines the arguments the model must supply | `{ query: string, limit?: integer }` |
+```
+JWT payload example:
+{
+  "sub": "user-4821",
+  "iss": "https://auth.somecompany.com",
+  "roles": ["MANAGER"],
+  "exp": 1714000000
+}
+```
 
-The description is the most important part. A well-written description means the model calls the right tool at the right time.
+The `iss` (issuer) claim tells the platform which company this token belongs to. The platform looks up the tenant whose config matches this issuer, validates the token, and from that point on all routing is scoped to that tenant.
 
 ---
 
-## MCP Transport Modes
+## Tools Are Always Tenant-Specific
 
-The MCP server supports two transport modes depending on the client:
+There are no built-in or standard tools on the platform. Every tool is defined per tenant based on what that company's system can do.
+
+A CRM company might have:
+
+```
+search_contacts, get_deal_status, create_follow_up
+```
+
+A logistics company might have:
+
+```
+track_shipment, get_inventory_level, get_delivery_estimate
+```
+
+An HR platform like Kronos might have:
+
+```
+search_employees, get_time_report, get_employee_skills
+```
+
+When a user connects, the model sees only the tools that belong to their company. Nothing else is visible.
+
+---
+
+## Transport Modes
+
+The MCP Platform supports two transport modes.
 
 ### HTTP/SSE (for network clients)
 
-Used when the MCP client connects over the network — a custom web UI, third-party app, or remote Claude instance.
+Used for web-based AI clients, third-party agent platforms, and any client connecting over the network.
 
 ```
 POST /mcp/sse
-Authorization: Bearer <jwt-or-api-key>
+Authorization: Bearer <tenant-jwt>
 ```
 
 ### stdio (for Claude Desktop)
 
-Claude Desktop launches the MCP server as a local child process and communicates over stdin/stdout. This is configured in `claude_desktop_config.json`:
+Claude Desktop launches the MCP server as a local process. Configured in claude_desktop_config.json:
 
 ```json
 {
   "mcpServers": {
-    "kronos": {
+    "mcp-platform": {
       "command": "java",
-      "args": ["-jar", "/path/to/kronos-mcp-server.jar"],
+      "args": ["-jar", "/path/to/mcp-platform.jar"],
       "env": {
         "SPRING_AI_MCP_SERVER_TRANSPORT": "STDIO"
       }
@@ -63,30 +93,16 @@ Claude Desktop launches the MCP server as a local child process and communicates
 
 ---
 
-## What the Model Sees
-
-When a user connects an MCP-aware AI client to Kronos MCP, the model automatically discovers the available tools. A conversation might look like:
-
-> **User:** Find me everyone in the product team with Python skills.
->
-> **Model (internally):** I have `search_employees` and `get_employee_skills`. I'll search the product team first, then check skills.
->
-> *calls `search_employees(query="product team")`*
-> *calls `get_employee_skills(employeeId="...")` for each result*
->
-> **Model:** Here are 5 people in the product team with Python skills: [list]
-
-The user never sees the tool calls — just the final grounded answer. Every fact in that answer came from a real API call, not a hallucination.
-
----
-
 ## Safety Model
 
-MCP tool calls are not free-form code execution. Every tool:
+Every tool call on the platform goes through five checks:
 
-1. **Validates its inputs** at the tool boundary (not just trusting the model's output)
-2. **Checks the caller's role** from the JWT/token claims
-3. **Logs the invocation** regardless of success or failure
-4. **Can be disabled** individually or globally via feature flags
+```
+1. Auth check    - Is the JWT valid for this tenant?
+2. Tenant check  - Is this tool activated for this tenant?
+3. Role check    - Does this user's role allow this tool call?
+4. Input check   - Are the arguments valid?
+5. Write flag    - If this is a write tool, is it enabled for this tenant?
+```
 
-Write tools (submit timesheet, update status) are **off by default** and must be explicitly enabled per environment.
+All five must pass. If any fails, the call is rejected with a clear error message and the attempt is logged.

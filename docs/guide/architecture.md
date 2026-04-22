@@ -3,98 +3,154 @@
 ## High-Level Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        MCP CLIENTS                          │
-│                                                             │
-│   Claude Desktop   |   Custom Chat UI   |   External App    │
-└────────────┬────────────────┬────────────────┬──────────────┘
-             │                │                │
-             │  JWT           │  JWT           │  API Key / OAuth Token
-             ▼                ▼                ▼
-┌─────────────────────────────────────────────────────────────┐
-│               KRONOS MCP SERVER (Spring Boot)               │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │  Auth Filter │  │  Tool Layer  │  │  Audit / Rate    │   │
-│  │  JWT / API   │  │  (MCP Tools) │  │  Limiter         │   │
-│  │  Key / OAuth │  │              │  │                  │   │
-│  └──────────────┘  └──────┬───────┘  └──────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-             Internal HTTP calls (privileged client)
-                            │
-         ┌──────────────────┼──────────────────┐
-         ▼                  ▼                  ▼
-  ┌─────────────┐   ┌──────────────┐   ┌─────────────┐
-  │   Kronos    │   │   Kronos     │   │   Kronos    │
-  │  User Dir   │   │  Time Report │   │   Skills    │
-  │  (Play API) │   │  (Play API)  │   │  (Play API) │
-  └─────────────┘   └──────────────┘   └─────────────┘
++------------------------------------------------------------------+
+|                         AI CLIENTS                               |
+|                                                                  |
+|        Claude Desktop      Custom Chat UI      AI Agent          |
++----------------+------------------+------------------+-----------+
+                 |                  |                  |
+         /t/kronos/mcp/sse   /t/acme/mcp/sse   /t/company-b/mcp/sse
+         Bearer <jwt>        Bearer <jwt>       Bearer <jwt>
+                 |                  |                  |
+                 v                  v                  v
++------------------------------------------------------------------+
+|                   MCP PLATFORM (Spring Boot)                     |
+|                                                                  |
+|  +-----------------+  +------------------+  +----------------+  |
+|  |  Auth Gateway   |  |  Tenant Router   |  |  Audit /       |  |
+|  |                 |  |                  |  |  Rate Limiter  |  |
+|  |  1. Tenant from |  |  Loads tenant    |  |                |  |
+|  |     URL slug    |  |  config and      |  |  Per tenant,   |  |
+|  |  2. iss check   |  |  activated tools |  |  per user      |  |
+|  |     (if present)|  |  from registry   |  |                |  |
+|  |  3. Signature   |  |                  |  |                |  |
+|  |     validation  |  |                  |  |                |  |
+|  +-----------------+  +--------+---------+  +----------------+  |
+|                                |                                 |
+|  +-----------------------------v------------------------------+  |
+|  |                    Tool Registry                           |  |
+|  |                                                            |  |
+|  |   kronos:     search_employees, get_time_report, ...       |  |
+|  |   acme:       search_contacts, get_deal_status, ...        |  |
+|  |   company-b:  track_shipment, get_inventory_level, ...     |  |
+|  +-----------------------------+------------------------------+  |
++--------------------------------+---------------------------------+
+                                 |
+           Internal HTTP calls via per-tenant adapter config
+                                 |
+         +-----------------------+-----------------------+
+         v                       v                       v
+  +-------------+       +-----------------+     +-------------+
+  |   Kronos    |       |   Acme          |     |  Company B  |
+  |  (Play API) |       |   (their API)   |     |  (their API)|
+  +-------------+       +-----------------+     +-------------+
 ```
 
 ---
 
 ## Component Roles
 
-### MCP Server (New - Spring Boot)
+### MCP Platform (Central - Spring Boot)
 
-This is the new component we build. It is a **thin adapter**:
+The single deployable service that powers the entire platform. Responsible for:
 
-- Speaks the MCP protocol over HTTP/SSE (or stdio for Claude Desktop)
-- Validates incoming credentials (JWT, API key, or OAuth token)
-- Translates MCP tool calls into internal HTTP calls to Kronos Play APIs
-- Enforces role-based access at the tool level
-- Logs every invocation for audit
+- Speaking the MCP protocol over HTTP/SSE or stdio
+- Identifying the tenant from the URL path (`/t/{slug}/mcp/sse`)
+- Validating the JWT using that tenant's configured auth method
+- Looking up which tools that tenant has activated
+- Routing tool calls to the correct company API via adapter config
+- Logging every invocation with tenant context
 
-It does **not** touch the database directly. All business logic stays in the existing Kronos backend.
+### Tenant Registry (Database)
 
-### Kronos Backend (Existing - Play Framework)
+One record per registered company:
 
-Completely **unchanged**. The MCP server calls it as a trusted internal client, the same way any other internal service would.
+```
+tenants
+  id            UUID
+  name          "Kronos"
+  slug          "kronos"
+  auth_method   "JWKS" or "HS256_SECRET"
+  jwks_uri      "https://kronos-auth/.well-known/jwks.json"
+  token_issuer  "https://kronos-auth"  (optional)
+  api_base_url  "https://kronos-internal/api"
+  status        ACTIVE
+```
 
-### MCP Clients (Various)
+The `token_issuer` field is optional. If set, the platform validates the `iss` claim in the JWT against it. If not set, the `iss` check is skipped.
 
-Any MCP-compatible consumer: Claude Desktop, a custom web UI, or a third-party AI agent platform. The client connects to the MCP server, asks "what tools do you have?", receives a manifest, and then calls tools based on user intent.
+### Adapter Config (Per Tenant)
+
+Maps tool names to the tenant's specific API endpoints:
+
+```
+tenant_adapters
+  tenant_id          -> kronos
+  tool_name          "search_employees"
+  http_method        GET
+  endpoint_template  "/employees?q={query}&limit={limit}"
+  response_mapper    "kronos_employee_mapper"
+```
+
+### Tool Registry (Per Tenant)
+
+Which tools each tenant has activated:
+
+```
+tenant_tools
+  tenant_id     -> kronos
+  tool_name     "search_employees"
+  enabled       true
+  write_enabled false
+```
+
+### Company APIs (External - Untouched)
+
+Each company's backend is completely unchanged. The platform calls it as a trusted external client.
 
 ---
 
-## Why a Separate Spring Boot Service?
+## Tenant Isolation
 
-We deliberately chose **not** to add MCP directly into the Play monolith because:
+Isolation is enforced at every layer:
 
-1. **Separation of concerns** — The MCP server is an AI-layer concern. Play is the business logic layer.
-2. **Independent deployability** — We can deploy, scale, and roll back the MCP server without touching Kronos.
-3. **Security boundary** — The MCP server is the only component exposed to external AI clients. Keeping it thin makes it easier to audit and harden.
+| Layer | How isolation is enforced |
+|---|---|
+| URL | Each tenant has a dedicated endpoint /t/{slug}/mcp/sse |
+| Auth | JWT validated against that specific tenant's config only |
+| iss check | If iss is present, it must match the tenant - mismatches are rejected |
+| Data | Tool calls only reach the specific tenant's registered APIs |
+| Audit log | Every entry tagged with tenant_id |
+| Rate limits | Per tenant per user |
 
 ---
 
-## Data Flow Example
-
-Here is what happens when Claude asks: *"Which employees in the Build team have React skills and are currently on the bench?"*
+## How a Request Flows
 
 ```
-1. User types query in Claude Desktop
+1. Request arrives: POST /t/kronos/mcp/sse
+   Authorization: Bearer <jwt>
 
-2. Claude calls search_employees(query="Build team")
-   → MCP server validates JWT
-   → MCP server calls GET /api/employees?q=Build+team on Play
-   → Returns list of employees in the Build team
+2. Tenant Router:
+   -> slug = "kronos" (from URL)
+   -> tenant config loaded for Kronos
 
-3. Claude calls get_employee_skills(employeeIds=[...], skill="React")
-   → MCP server validates input
-   → MCP server calls GET /api/skills?employeeIds=...&skill=React on Play
-   → Returns employees with React skills
+3. Auth Gateway:
+   -> iss claim present? yes -> matches Kronos tokenIssuer? yes -> proceed
+   -> iss claim missing? -> skip iss check, proceed
+   -> Validate signature using Kronos JWKS (or HS256 secret)
+   -> Extract: sub, roles
 
-4. Claude calls get_employee_status(employeeIds=[...], status="BENCH")
-   → MCP server enforces role-based access if required
-   → MCP server calls GET /api/employees/status?employeeIds=...&status=BENCH on Play
-   → Returns employees currently on the bench
+4. Tool Registry:
+   -> Load Kronos activated tools
+   -> Return manifest to AI client
 
-5. Claude filters and synthesizes results
-   → Identifies employees who match all three conditions (Build + React + Bench)
+5. Tool call executes:
+   -> Adapter config for Kronos + this tool loaded
+   -> HTTP request built from endpoint template
+   -> Kronos API called
+   -> Response mapped to standard DTO
 
-6. Claude responds to the user
-   → Tool calls can be logged with user, tool name, arguments, and outcome for traceability
+6. Result returned to AI client
+   -> Logged: tenant=kronos, user=sub, tool=name, outcome=OK
 ```
-
-The model discovers capabilities, chains tool calls, and enforces the auth boundary — no hallucination, because every fact came from a real tool call.

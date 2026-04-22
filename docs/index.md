@@ -2,9 +2,9 @@
 layout: home
 
 hero:
-  name: "Kronos MCP"
-  text: "Model Context Protocol for Employee Management"
-  tagline: Expose Kronos data and workflows to AI agents - securely, incrementally, and with full auditability.
+  name: "MCP Platform"
+  text: "Model Context Protocol as a Service"
+  tagline: Connect any company's existing systems to AI agents. Securely, incrementally, and without rebuilding your backend.
   actions:
     - theme: brand
       text: Get Started
@@ -15,19 +15,19 @@ hero:
 
 features:
   - icon:
-      src: /icons/directory.svg
-    title: User Directory
-    details: Let AI agents search, retrieve, and reason over employee profiles, reporting lines, and departments.
-  - icon:
-      src: /icons/timereport.svg
-    title: Time Report
-    details: Query and submit timesheet data with role-aware access controls - managers see teams, employees see their own.
-  - icon:
-      src: /icons/skills.svg
-    title: Skills
-    details: Surface employee skill profiles to power smart team matching, project staffing, and gap analysis.
+      src: /icons/tenant.svg
+    title: Multi-Tenant
+    details: One platform, many companies. Each tenant connects their own APIs, uses their own auth, and defines the tools they need.
   - icon:
       src: /icons/secure.svg
-    title: Secure by Design
-    details: JWT validation, API key scoping, OAuth2 for individuals - three client types, one secure gateway.
+    title: Auth Delegation
+    details: No new login system. Each company's users authenticate with their existing JWT or SSO. The platform validates and routes.
+  - icon:
+      src: /icons/tools.svg
+    title: Tenant-Defined Tools
+    details: Every tool is defined per tenant based on their system. A CRM, an HR platform, a logistics system - any API can become a tool.
+  - icon:
+      src: /icons/kronos.svg
+    title: Kronos - Reference Client
+    details: Kronos is Client #1. Every pattern, tool, and auth flow is proven here before being offered to other companies.
 ---

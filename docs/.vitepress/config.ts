@@ -1,9 +1,8 @@
 import { defineConfig } from 'vitepress'
 
-// https://vitepress.vuejs.org/config/app-configs
 export default defineConfig({
-  title: 'Kronos MCP',
-  description: 'Model Context Protocol integration for Kronos — Employee Management Platform',
+  title: 'MCP Platform',
+  description: 'Model Context Protocol as a Service - Connect any company system to AI agents securely and incrementally.',
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
@@ -19,42 +18,51 @@ export default defineConfig({
         ]
       },
       {
-        text: 'Authentication & Access',
+        text: 'Tenant Onboarding',
+        items: [
+          { text: 'Onboarding Overview', link: '/guide/onboarding-overview' },
+          { text: 'Registering a Company', link: '/guide/onboarding-register' },
+          { text: 'Connecting APIs', link: '/guide/onboarding-apis' },
+          { text: 'Auth Configuration', link: '/guide/onboarding-auth' },
+          { text: 'Activating Tools', link: '/guide/onboarding-tools' },
+        ]
+      },
+      {
+        text: 'Authentication and Access',
         items: [
           { text: 'Auth Overview', link: '/guide/auth-overview' },
-          { text: 'Kronos Users (JWT)', link: '/guide/auth-kronos-users' },
-          { text: 'External Applications (API Key)', link: '/guide/auth-external-apps' },
-          { text: 'External Individual Users (OAuth)', link: '/guide/auth-individual-users' },
-          { text: 'Permissions Matrix', link: '/guide/permissions' },
+          { text: 'JWT and SSO Delegation', link: '/guide/auth-jwt' },
+          { text: 'Permissions and Roles', link: '/guide/permissions' },
         ]
       },
       {
-        text: 'MCP Tools',
+        text: 'Tools',
         items: [
-          { text: 'User Directory', link: '/guide/tools-user-directory' },
-          { text: 'Time Report', link: '/guide/tools-time-report' },
-          { text: 'Skills', link: '/guide/tools-skills' },
+          { text: 'How Tools Work', link: '/guide/tools-how-it-works' },
+          { text: 'Defining Tools for a Tenant', link: '/guide/tools-defining' },
+          { text: 'Tool Design Best Practices', link: '/guide/tools-best-practices' },
         ]
       },
       {
-        text: 'Open Decisions',
+        text: 'Reference Client - Kronos',
         items: [
-          { text: 'Potential Clients & Positioning', link: '/guide/open-decisions' },
+          { text: 'Kronos as Client #1', link: '/guide/kronos-overview' },
+          { text: 'Kronos Tool Mapping', link: '/guide/kronos-tools' },
         ]
       },
       {
         text: 'Implementation Timeline',
         items: [
           { text: 'Timeline Overview', link: '/guide/timeline' },
-          { text: 'Phase 1 — User Directory', link: '/guide/phase-1' },
-          { text: 'Phase 2 — Time Report', link: '/guide/phase-2' },
-          { text: 'Phase 3 — Skills', link: '/guide/phase-3' },
+          { text: 'Phase 1 - Core Platform', link: '/guide/phase-1' },
+          { text: 'Phase 2 - Kronos Onboarding', link: '/guide/phase-2' },
+          { text: 'Phase 3 - Multi-Tenant', link: '/guide/phase-3' },
         ]
       },
     ],
     socialLinks: [],
     footer: {
-      message: 'Kronos MCP — Internal Engineering Documentation',
+      message: 'MCP Platform - Internal Engineering Documentation',
     }
   }
 })

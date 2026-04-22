@@ -1,104 +1,114 @@
-# Permissions Matrix
+# Permissions and Roles
 
-## Overview
+## How Permissions Work
 
-Access control in Kronos MCP operates at two levels:
+Permissions operate at two levels:
 
-1. **Auth-level** — Is the caller authenticated at all? (JWT valid, API key valid, OAuth token valid)
-2. **Tool-level** — Does this specific caller have permission to run this specific tool with these specific arguments?
+1. **Tenant level** - Is this tool activated for this tenant?
+2. **User level** - Does this user's role allow this specific call?
 
-Both levels must pass for a tool call to succeed.
-
----
-
-## Full Permissions Matrix
-
-| Tool | Kronos Employee | Kronos Manager | Kronos HR Admin | External App (read scope) | External App (write scope) | External Individual |
-|---|---|---|---|---|---|---|
-| `search_employees` | ✅ Own dept only | ✅ All | ✅ All | ✅ (directory:read) | — | ✅ (directory:read) |
-| `get_employee` | ✅ Own profile | ✅ Team | ✅ All | ✅ (directory:read) | — | ✅ (directory:read) |
-| `get_time_report` | ✅ Own only | ✅ Team | ✅ All | ✅ (timereport:read) | — | ✅ Own only |
-| `submit_timesheet_entry` | ✅ Own only | ✅ Own only | ✅ Any | ❌ | ✅ (timereport:write) | ⚠️ Own only (Phase 2+) |
-| `get_employee_skills` | ✅ All | ✅ All | ✅ All | ✅ (skills:read) | — | ✅ (skills:read) |
-| `search_by_skill` | ✅ All | ✅ All | ✅ All | ✅ (skills:read) | — | ✅ (skills:read) |
-| `update_employee_status` | ✅ Own only | ✅ Own only | ✅ Any | ❌ | ❌ | ❌ |
-
-**Legend:** ✅ Allowed | ❌ Not allowed | ⚠️ Conditional / future
+Both must pass. A tool that is activated for a tenant can still be blocked at the user level.
 
 ---
 
-## Write Tools Are Feature-Flagged
+## Standard Role Permissions
 
-All write tools (`submit_timesheet_entry`, `update_employee_status`) are controlled by a feature flag that defaults to `false`. You must explicitly enable them per environment.
+| Tool | EMPLOYEE | MANAGER | HR_ADMIN |
+|---|---|---|---|
+| search (read, any) | Yes | Yes | Yes |
+| get single record - own | Yes | Yes | Yes |
+| get single record - team | No | Yes | Yes |
+| get single record - any | No | No | Yes |
+| write - own record | Yes | Yes | Yes |
+| write - any record | No | No | Yes |
 
-```properties
-# application.properties
-mcp.write-tools.enabled=false
-```
-
-This means you can deploy the MCP server to production in read-only mode and enable writes deliberately after validation.
+These rules apply to all tools regardless of what domain they cover. A tool that returns personal data always follows the same ownership pattern.
 
 ---
 
-## How Tool-Level Auth is Enforced
+## How Role Checks Work in Code
 
-Each tool checks the `SecurityContext` populated by the auth filter. Example from `get_time_report`:
+Each tool reads from `TenantContext` which is populated by the auth filter:
 
 ```java
-@Tool(description = "Get time report entries for an employee...")
-public TimeReport get_time_report(String employeeId, String fromDate, String toDate) {
+@Tool(description = "Get report data for an employee...")
+public Report get_report(String resourceId, String fromDate, String toDate) {
 
-    JwtClaims caller = SecurityContext.current();
+    CallerClaims caller = TenantContext.getCaller();
 
-    // Non-managers can only see their own data
-    if (!caller.hasRole("MANAGER") && !caller.sub().equals(employeeId)) {
-        throw new McpToolException("You can only view your own time report.");
+    String resolvedId = (resourceId == null || resourceId.isBlank())
+        ? caller.sub()
+        : resourceId;
+
+    if (!caller.hasRole("MANAGER") && !caller.sub().equals(resolvedId)) {
+        throw new McpToolException("You can only view your own data.");
     }
 
-    return timeClient.getReport(employeeId, fromDate, toDate);
-}
-```
-
-Write tools additionally check the feature flag:
-
-```java
-@Tool(description = "Submit a timesheet entry...")
-public TimesheetEntryResult submit_timesheet_entry(...) {
-
-    if (!writeEnabled) {
-        throw new McpToolException("Write tools are disabled in this environment.");
-    }
-
-    JwtClaims caller = SecurityContext.current();
-    // Always bind to caller.sub() — never trust client-supplied employeeId for writes
-    return timeClient.submitEntry(caller.sub(), projectCode, date, hours, notes);
+    return adapterService.call(tenant, "get_report",
+        Map.of("id", resolvedId, "from", fromDate, "to", toDate));
 }
 ```
 
 ---
 
-## Sensitive Field Exclusions
+## Write Tool Protection
 
-Regardless of role or scope, the following fields are **never** returned by any MCP tool:
+Write tools have an extra check - the tenant-level write flag:
 
-- Salary and compensation data
+```java
+TenantTool toolConfig = tenantToolRegistry.get(tenant.getId(), "submit_entry");
+
+if (!toolConfig.isWriteEnabled()) {
+    throw new McpToolException(
+        "Write tools are not enabled for this tenant. Contact the platform team.");
+}
+```
+
+Write tools also always bind to the caller's own identity. A user cannot submit data on behalf of someone else:
+
+```java
+// Always use caller.sub() for write operations - never trust a client-supplied ID
+return adapterService.call(tenant, "submit_entry",
+    Map.of("userId", caller.sub(), ...));
+```
+
+---
+
+## Sensitive Field Exclusion
+
+Regardless of role, certain fields are never returned by any tool. These are excluded at the response mapper level before data reaches the tool layer. Examples:
+
+- Salary and compensation
 - Personal home address
-- Personal phone number
-- National ID / tax ID numbers
-- Medical / leave reason details
+- National ID or tax ID
+- Medical or leave reason details
 
-These fields exist in the Kronos database but are explicitly excluded from the MCP tool response models. The Play API endpoints called by the MCP server use dedicated MCP-safe response DTOs that omit these fields.
+Each tenant's response mapper is responsible for explicitly including only safe fields.
 
 ---
 
 ## Rate Limits
 
-All callers are subject to rate limits enforced at the tool level:
-
-| Caller type | Rate limit |
+| Role | Default rate limit |
 |---|---|
-| Kronos user (JWT) | 10 calls/second per user |
-| External app (API key) | 5 calls/second per key (configurable at key creation) |
-| External individual (OAuth) | 2 calls/second per user |
+| EMPLOYEE | 5 calls per second |
+| MANAGER | 10 calls per second |
+| HR_ADMIN | 20 calls per second |
 
-Rate limit exceeded responses return a `McpToolException` with a human-readable message. The AI model will surface this to the user.
+Rate limits are configurable per tenant at onboarding.
+
+---
+
+## Audit Log
+
+Every tool call is logged regardless of success or failure:
+
+| Field | Example |
+|---|---|
+| tenant_id | kronos |
+| user_id | emp-4821 |
+| tool_name | search_employees |
+| outcome | OK |
+| duration_ms | 142 |
+
+Arguments are stored as a hash to avoid logging sensitive data. Full arguments are only available in a restricted audit store accessible to platform admins.

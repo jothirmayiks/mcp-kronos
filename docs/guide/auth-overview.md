@@ -1,80 +1,114 @@
-# Authentication Overview
+# Auth Overview
 
-## The Three Client Types
+## One Rule
 
-Kronos MCP serves three fundamentally different kinds of callers. Each has a different trust model, different onboarding path, and different technical solution for authentication.
+Every user authenticates with their own company's existing auth system. The MCP Platform never issues tokens, never manages passwords, and never creates user accounts.
+
+This means:
+- A Kronos employee uses their Kronos JWT
+- A Company B employee uses their Company B JWT
+- No external users, no separate login, no new credentials to manage
+
+---
+
+## How the Platform Identifies the Tenant
+
+Before validating a token, the platform needs to know which tenant the request belongs to. This is done using the **URL path**, not the token contents.
+
+Every tenant gets a unique URL path on the platform:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     WHO IS CALLING?                             │
-├─────────────────────┬───────────────────────┬───────────────────┤
-│  Kronos User        │  External Application │  External         │
-│  (Internal)         │  (B2B / Integration)  │  Individual User  │
-├─────────────────────┼───────────────────────┼───────────────────┤
-│  Logs into Kronos   │  A system, not a      │  A person who has │
-│  already. Has an    │  person. Needs        │  no Kronos login. │
-│  existing account.  │  programmatic access. │  External access. │
-├─────────────────────┼───────────────────────┼───────────────────┤
-│  Auth: JWT          │  Auth: API Key        │  Auth: OAuth 2.0  │
-│  (reuse existing)   │  (issued by us)       │  (new — TBD)      │
-└─────────────────────┴───────────────────────┴───────────────────┘
+POST /t/{tenantSlug}/mcp/sse
+Authorization: Bearer <jwt>
+```
+
+Examples:
+```
+POST /t/kronos/mcp/sse
+POST /t/acme/mcp/sse
+POST /t/company-b/mcp/sse
+```
+
+The tenant slug in the URL is the primary source of tenant identity. The platform loads the correct tenant config before even opening the JWT.
+
+---
+
+## Why URL-Based Identification?
+
+The alternative is reading the `iss` (issuer) claim from the JWT to identify the tenant. This has problems:
+
+| Problem | Detail |
+|---|---|
+| iss may not exist | Some legacy or custom auth systems do not include an iss claim in their JWTs |
+| iss may be inconsistent | Some systems include iss in some tokens but not others |
+| Guessing is risky | If the platform cannot identify the tenant, it cannot validate the token at all |
+
+Using the URL path avoids all of these problems. The tenant is always explicitly known from the request.
+
+---
+
+## What Happens With the iss Claim
+
+Once the tenant is identified from the URL, the platform validates the JWT using that tenant's configured auth method.
+
+If the JWT includes an `iss` claim, the platform does an additional check:
+
+```
+Does the iss claim match the tenant's configured tokenIssuer?
+  YES -> proceed
+  NO  -> reject with 401 (token does not belong to this tenant)
+  MISSING -> skip the iss check, proceed with signature validation only
+```
+
+This means:
+- Tokens with a matching `iss` - fully validated
+- Tokens with a mismatched `iss` - rejected (prevents using one tenant's token on another tenant's endpoint)
+- Tokens with no `iss` at all - still work, validated by signature only
+
+---
+
+## Full Auth Flow
+
+```
+1. Request arrives at /t/kronos/mcp/sse
+   -> Tenant identified from URL: kronos
+   -> Kronos tenant config loaded
+
+2. JWT extracted from Authorization header
+
+3. iss claim check (if present):
+   -> iss matches kronos tokenIssuer? proceed
+   -> iss does not match? reject 401
+
+4. Signature validation:
+   -> JWKS method: fetch Kronos public keys, verify signature
+   -> HS256 method: use stored secret, verify signature
+
+5. Claims extracted:
+   -> sub: user identity
+   -> roles: mapped to platform roles
+
+6. Request proceeds scoped to Kronos tenant
 ```
 
 ---
 
-## Summary Table
+## No Cross-Tenant Access
 
-| | Kronos User | External App | External Individual |
-|---|---|---|---|
-| **Who** | Internal employee | Partner system / integration | Third-party developer or user |
-| **Auth method** | JWT from Kronos login | API Key we issue | OAuth 2.0 token |
-| **Onboarding** | Already has account | Contact us, we issue a key | Register via OAuth flow |
-| **Token lifetime** | Session-based | Long-lived (revocable) | Short-lived + refresh |
-| **Scopes** | Role from Kronos (EMPLOYEE, MANAGER, HR_ADMIN) | Fixed scope at key creation | Consent-based scope |
-| **Revocation** | Via Kronos session invalidation | Delete/rotate the key | Revoke OAuth token |
-| **Implementation effort** | ✅ Already built | Medium | High (needs new OAuth server) |
+Even if a user somehow passes a valid Kronos JWT to the Acme endpoint (`/t/acme/mcp/sse`), the request will be rejected because:
+
+- The platform loads Acme's JWKS to validate the token
+- A Kronos token will fail signature validation against Acme's JWKS
+- If iss is present, it will also fail the issuer check
 
 ---
 
-## How the MCP Server Handles All Three
+## Supported Auth Methods
 
-The MCP server runs a **single auth filter** that detects what kind of credential is present and routes it appropriately:
+| Method | When to use |
+|---|---|
+| JWKS (RS256 / ES256) | Company uses standard OAuth 2.0 or OpenID Connect - recommended |
+| Shared secret (HS256) | Company uses HS256 signing - supported as fallback |
+| No JWT | Needs discussion before onboarding can begin |
 
-```java
-@Component
-public class McpAuthFilter implements HandlerInterceptor {
-
-    @Override
-    public boolean preHandle(HttpServletRequest req, ...) {
-        String auth = req.getHeader("Authorization");
-
-        if (auth == null) throw new UnauthorizedException("Missing credentials");
-
-        if (auth.startsWith("Bearer ")) {
-            String token = auth.substring(7);
-            if (isApiKey(token)) {
-                // API Key path — look up key in DB, load scopes
-                handleApiKey(token);
-            } else {
-                // JWT path — validate signature, load claims
-                handleJwt(token);
-            }
-        } else {
-            throw new UnauthorizedException("Unsupported auth scheme");
-        }
-        return true;
-    }
-}
-```
-
-OAuth tokens (once implemented) are also bearer tokens — the filter will distinguish them by issuer claim in the JWT.
-
----
-
-## Detailed Pages
-
-Each client type is covered in detail on its own page:
-
-- [Kronos Users (JWT)](/guide/auth-kronos-users) — the simplest path, already mostly built
-- [External Applications (API Key)](/guide/auth-external-apps) — medium effort, clear path
-- [External Individual Users (OAuth)](/guide/auth-individual-users) — most complex, requires new infrastructure
+See [JWT and SSO Delegation](/guide/auth-jwt) for full implementation details.
