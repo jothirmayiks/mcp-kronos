@@ -131,10 +131,11 @@ All five must pass. If any fails, the call is rejected with a clear error messag
 
 <rect x="40" y="146" width="200" height="62" rx="8" stroke-width="1" class="mcp-box-white"/>
 <text font-family="Inter,system-ui,sans-serif" font-size="15" font-weight="600" class="mcp-title" x="140" y="170" text-anchor="middle" dominant-baseline="central">Step 2</text>
-<text font-family="Inter,system-ui,sans-serif" font-size="12" class="mcp-sub" x="140" y="192" text-anchor="middle" dominant-baseline="central">Admin connects Kronos</text>
-<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="162" dominant-baseline="central">Provides Kronos API URL</text>
-<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="182" dominant-baseline="central">Provides auth details (JWKS or secret)</text>
-<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="202" dominant-baseline="central">Platform now knows how to talk to Kronos</text>
+<text font-family="Inter,system-ui,sans-serif" font-size="12" class="mcp-sub" x="140" y="192" text-anchor="middle" dominant-baseline="central">Admin connects Kronos instance</text>
+<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="155" dominant-baseline="central">Admin sees Kronos is already supported</text>
+<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="172" dominant-baseline="central">Clicks "Connect Kronos", provides their Kronos URL</text>
+<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="189" dominant-baseline="central">Platform already knows the tools, endpoints,</text>
+<text font-family="Inter,system-ui,sans-serif" font-size="13" class="mcp-note" x="260" y="206" dominant-baseline="central">and parameters - admin just fills the blanks</text>
 <line x1="140" y1="208" x2="140" y2="230" stroke-width="1.4" fill="none" class="mcp-arr-line" marker-end="url(#mcp-arr)"/>
 
 <rect x="40" y="230" width="200" height="62" rx="8" stroke-width="1" class="mcp-box-white"/>
