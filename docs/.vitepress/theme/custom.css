@@ -2,3 +2,36 @@ img.VPImage[width="48"][height="48"] {
   width: 30px !important;
   height: 30px !important;
 }
+
+
+.mcp-bg-outer { fill: transparent; }
+.mcp-bg-inner { fill: transparent; }
+.mcp-box-white { fill: transparent; stroke: #C8C6BE; }
+.mcp-box-grey { fill: transparent; stroke: #C8C6BE; }
+.mcp-box-dark { fill: transparent; stroke: #C8C6BE; }
+.mcp-title { fill: #2C2C2A; }
+.mcp-sub { fill: #5F5E5A; }
+.mcp-note { fill: #3D3D3A; }
+.mcp-label { fill: #888780; }
+.mcp-line { stroke: #C8C6BE; }
+.mcp-divider { stroke: #C8C6BE; }
+.mcp-arr-line { stroke: #9C9A92; }
+.mcp-insight-title { fill: #2C2C2A; }
+.mcp-insight-sub1 { fill: #3D3D3A; }
+.mcp-insight-sub2 { fill: #5F5E5A; }
+
+.dark .mcp-bg-outer { fill: transparent; }
+.dark .mcp-bg-inner { fill: transparent; }
+.dark .mcp-box-white { fill: transparent; stroke: #5F5E5A; }
+.dark .mcp-box-grey { fill: transparent; stroke: #5F5E5A; }
+.dark .mcp-box-dark { fill: transparent; stroke: #5F5E5A; }
+.dark .mcp-title { fill: #F7F6F2; }
+.dark .mcp-sub { fill: #B4B2A9; }
+.dark .mcp-note { fill: #D3D1C7; }
+.dark .mcp-label { fill: #888780; }
+.dark .mcp-line { stroke: #5F5E5A; }
+.dark .mcp-divider { stroke: #5F5E5A; }
+.dark .mcp-arr-line { stroke: #888780; }
+.dark .mcp-insight-title { fill: #F7F6F2; }
+.dark .mcp-insight-sub1 { fill: #D3D1C7; }
+.dark .mcp-insight-sub2 { fill: #888780; }

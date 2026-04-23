@@ -3,6 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'MCP Platform',
   description: 'Model Context Protocol as a Service - Connect any company system to AI agents securely and incrementally.',
+  head: [
+  ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+  ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' }],
+  ],
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
