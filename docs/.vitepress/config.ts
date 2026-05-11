@@ -55,12 +55,21 @@ export default defineConfig({
         ]
       },
       {
-        text: 'Implementation Timeline',
+        text: 'Planning Phase',
         items: [
           { text: 'Timeline Overview', link: '/guide/timeline' },
           { text: 'Phase 1 - Core Platform', link: '/guide/phase-1' },
           { text: 'Phase 2 - Kronos Onboarding', link: '/guide/phase-2' },
           { text: 'Phase 3 - Multi-Tenant', link: '/guide/phase-3' },
+        ]
+      },
+      {
+        text: 'Implementation Journey',
+        items: [
+          { text: 'Journey Overview', link: '/guide/journey-overview' },
+          { text: 'Stage 1 - Kronos MCP Server', link: '/guide/stage-1-kronos-server' },
+          { text: 'Stage 2 - Platform Integration & Auth', link: '/guide/stage-2-platform-auth' },
+          { text: 'Stage 3 - Login Flow Design', link: '/guide/stage-3-login-flow' },
         ]
       },
     ],
