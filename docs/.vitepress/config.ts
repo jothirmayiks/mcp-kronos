@@ -22,7 +22,27 @@ export default defineConfig({
         ]
       },
       {
+        text: 'Implementation Journey',
+        items: [
+          { text: 'Journey Overview', link: '/guide/journey-overview' },
+          { text: 'Stage 1 - Kronos MCP Server', link: '/guide/stage-1-kronos-server' },
+          { text: 'Stage 2 - Platform Integration & Auth', link: '/guide/stage-2-platform-auth' },
+          { text: 'Stage 3 - Login Flow Design', link: '/guide/stage-3-login-flow' },
+        ]
+      },
+      {
+        text: 'Planning Phase',
+        collapsed: true,
+        items: [
+          { text: 'Timeline Overview', link: '/guide/timeline' },
+          { text: 'Phase 1 - Core Platform', link: '/guide/phase-1' },
+          { text: 'Phase 2 - Kronos Onboarding', link: '/guide/phase-2' },
+          { text: 'Phase 3 - Multi-Tenant', link: '/guide/phase-3' },
+        ]
+      },
+      {
         text: 'Tenant Onboarding',
+        collapsed: true,
         items: [
           { text: 'Onboarding Overview', link: '/guide/onboarding-overview' },
           { text: 'Registering a Company', link: '/guide/onboarding-register' },
@@ -33,6 +53,7 @@ export default defineConfig({
       },
       {
         text: 'Authentication and Access',
+        collapsed: true,
         items: [
           { text: 'Auth Overview', link: '/guide/auth-overview' },
           { text: 'JWT and SSO Delegation', link: '/guide/auth-jwt' },
@@ -41,6 +62,7 @@ export default defineConfig({
       },
       {
         text: 'Tools',
+        collapsed: true,
         items: [
           { text: 'How Tools Work', link: '/guide/tools-how-it-works' },
           { text: 'Defining Tools for a Tenant', link: '/guide/tools-defining' },
@@ -49,27 +71,10 @@ export default defineConfig({
       },
       {
         text: 'Reference Client - Kronos',
+        collapsed: true,
         items: [
           { text: 'Kronos as Client #1', link: '/guide/kronos-overview' },
           { text: 'Kronos Tool Mapping', link: '/guide/kronos-tools' },
-        ]
-      },
-      {
-        text: 'Planning Phase',
-        items: [
-          { text: 'Timeline Overview', link: '/guide/timeline' },
-          { text: 'Phase 1 - Core Platform', link: '/guide/phase-1' },
-          { text: 'Phase 2 - Kronos Onboarding', link: '/guide/phase-2' },
-          { text: 'Phase 3 - Multi-Tenant', link: '/guide/phase-3' },
-        ]
-      },
-      {
-        text: 'Implementation Journey',
-        items: [
-          { text: 'Journey Overview', link: '/guide/journey-overview' },
-          { text: 'Stage 1 - Kronos MCP Server', link: '/guide/stage-1-kronos-server' },
-          { text: 'Stage 2 - Platform Integration & Auth', link: '/guide/stage-2-platform-auth' },
-          { text: 'Stage 3 - Login Flow Design', link: '/guide/stage-3-login-flow' },
         ]
       },
     ],
